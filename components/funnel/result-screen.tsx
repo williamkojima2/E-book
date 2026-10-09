@@ -28,6 +28,12 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 const ANALYZING_MS = 1600
 const COUNT_UP_MS = 1400
 
+function playCashSound() {
+  const audio = new Audio('/sounds/cash-register.mp3')
+  audio.volume = 0.7
+  audio.play().catch(() => {})
+}
+
 function ScoreRing({ score, onDone }: { score: number; onDone: () => void }) {
   const [analyzing, setAnalyzing] = useState(true)
   const [value, setValue] = useState(0)
@@ -140,6 +146,7 @@ export function ResultScreen({
 
   const open = (i: number) => {
     if (opened[i]) return
+    playCashSound()
     const next = opened.map((o, j) => o || j === i)
     setOpened(next)
     if (next.every(Boolean)) track('Lead', { content_name: 'SetComplete' })
