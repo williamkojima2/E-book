@@ -10,7 +10,7 @@ import {
   RefreshCw,
   Sparkles,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import type { BalotoStats } from '@/lib/baloto'
 import { formatDrawDate, track } from '@/lib/tracking'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,89 @@ const TREND = {
   up: { label: '↑ Subiendo', className: 'text-safe' },
   down: { label: '↓ Bajando', className: 'text-cold' },
   flat: { label: '→ Estable', className: 'text-muted' },
+}
+
+const RING_RADIUS = 52
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+const ANALYZING_MS = 1600
+const COUNT_UP_MS = 1400
+
+function playCashSound() {
+  const audio = new Audio('/sounds/cash-register.mp3')
+  audio.volume = 0.7
+  audio.play().catch(() => {})
+}
+
+function ScoreRing({ score, onDone }: { score: number; onDone: () => void }) {
+  const [analyzing, setAnalyzing] = useState(true)
+  const [value, setValue] = useState(0)
+  const finish = useEffectEvent(onDone)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setAnalyzing(false)
+      setValue(score)
+      finish()
+      return
+    }
+
+    let frame = 0
+    const timer = window.setTimeout(() => {
+      setAnalyzing(false)
+      const start = performance.now()
+      const step = (now: number) => {
+        const t = Math.min((now - start) / COUNT_UP_MS, 1)
+        const eased = 1 - Math.pow(1 - t, 3)
+        setValue(Math.round(eased * score))
+        if (t < 1) frame = requestAnimationFrame(step)
+        else finish()
+      }
+      frame = requestAnimationFrame(step)
+    }, ANALYZING_MS)
+
+    return () => {
+      window.clearTimeout(timer)
+      cancelAnimationFrame(frame)
+    }
+  }, [score])
+
+  return (
+    <div className="relative size-44" role="status" aria-live="polite">
+      <svg
+        viewBox="0 0 120 120"
+        className={cn('size-full -rotate-90', analyzing && 'animate-spin [animation-duration:1.4s]')}
+        aria-hidden="true"
+      >
+        <circle cx="60" cy="60" r={RING_RADIUS} fill="none" stroke="var(--ls-card-2)" strokeWidth="9" />
+        <circle
+          cx="60"
+          cy="60"
+          r={RING_RADIUS}
+          fill="none"
+          stroke="var(--ls-gold)"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={RING_CIRCUMFERENCE}
+          strokeDashoffset={RING_CIRCUMFERENCE * (1 - (analyzing ? 0.22 : value / 100))}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+        {analyzing ? (
+          <span className="animate-pulse text-sm font-medium text-muted">Calculando…</span>
+        ) : (
+          <>
+            <span className="flex items-start font-display leading-none text-gold-2">
+              <span className="text-5xl tabular-nums">{value}</span>
+              <span className="mt-1 text-2xl">%</span>
+              <span className="mt-0.5 text-lg">*</span>
+            </span>
+            <span className="text-sm text-muted">coincidencia</span>
+          </>
+        )}
+        <span className="sr-only">{analyzing ? 'Calculando tu resultado' : `${score}% de coincidencia`}</span>
+      </div>
+    </div>
+  )
 }
 
 export function ResultScreen({
@@ -35,6 +118,7 @@ export function ResultScreen({
   const score = scoreAnswers(answers)
   const [opened, setOpened] = useState<boolean[]>([false, false, false])
   const complete = opened.every(Boolean)
+  const [revealed, setRevealed] = useState(false)
 
   const envelopes = [
     {
@@ -62,13 +146,11 @@ export function ResultScreen({
 
   const open = (i: number) => {
     if (opened[i]) return
+    playCashSound()
     const next = opened.map((o, j) => o || j === i)
     setOpened(next)
     if (next.every(Boolean)) track('Lead', { content_name: 'SetComplete' })
   }
-
-  const radius = 52
-  const circumference = 2 * Math.PI * radius
 
   return (
     <section aria-labelledby="result-title" className="flex flex-col gap-6">
@@ -76,37 +158,30 @@ export function ResultScreen({
         <h1 id="result-title" className="font-display text-5xl uppercase leading-none">
           Tu resultado
         </h1>
-        <div className="relative size-40">
-          <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
-            <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--ls-card-2)" strokeWidth="9" />
-            <circle
-              cx="60"
-              cy="60"
-              r={radius}
-              fill="none"
-              stroke="var(--ls-gold)"
-              strokeWidth="9"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - score / 100)}
-              className="transition-[stroke-dashoffset] duration-1000"
-            />
-          </svg>
-          <span className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-display text-6xl leading-none text-gold-2">{score}%*</span>
-            <span className="text-sm text-muted">coincidencia</span>
-          </span>
+        <ScoreRing score={score} onDone={() => setRevealed(true)} />
+        <div
+          className={cn(
+            'flex flex-col gap-5 transition-all duration-700 ease-out',
+            revealed ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+          )}
+        >
+          <p className="text-pretty text-lg font-medium leading-snug">
+            Según tus respuestas, tu perfil coincide con jugadores que podrían beneficiarse de un análisis basado en
+            datos históricos antes de apostar.
+          </p>
+          <p className="text-pretty text-xs text-muted">
+            *Estimación calculada a partir de tus respuestas. No es una predicción de resultados ni garantiza premios.
+          </p>
         </div>
-        <p className="text-pretty text-lg font-medium leading-snug">
-          Según tus respuestas, tu perfil coincide con jugadores que podrían beneficiarse de un análisis basado en
-          datos históricos antes de apostar.
-        </p>
-        <p className="text-pretty text-xs text-muted">
-          *Estimación calculada a partir de tus respuestas. No es una predicción de resultados ni garantiza premios.
-        </p>
       </div>
 
-      <div className="flex flex-col gap-5 rounded-3xl border border-gold/40 bg-gradient-to-b from-card-2 to-card px-5 py-6">
+      <div
+        aria-hidden={!revealed}
+        className={cn(
+          'flex flex-col gap-5 rounded-3xl border border-gold/40 bg-gradient-to-b from-card-2 to-card px-5 py-6 transition-all delay-200 duration-700 ease-out',
+          revealed ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-6 opacity-0',
+        )}
+      >
         <div className="flex flex-col gap-1 text-center">
           <h2 className="font-display text-[2rem] uppercase leading-none text-gold-2">
             {'🎁 Tu premio por completar el test'}
