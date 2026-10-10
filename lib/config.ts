@@ -24,7 +24,7 @@ export const PRICE_BUMP = 9900
 export const PRICE_BUMP_BEFORE = 49900
 
 /** Email de soporte mostrado en el pie del checkout. Vacío = no se muestra. */
-export const SUPPORT_EMAIL = ''
+export const SUPPORT_EMAIL = 'saclotesmart@gmail.com'
 
 export const CHECKOUT_CONFIG = {
   processorName: 'XPag',
