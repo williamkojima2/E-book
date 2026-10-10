@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Fraunces, Inter } from 'next/font/google'
 import Image from 'next/image'
 import { CheckoutForm } from '@/components/checkout/checkout-form'
-import { SUPPORT_EMAIL, SUPPORT_WHATSAPP } from '@/lib/config'
+import { SUPPORT_EMAIL } from '@/lib/config'
 import { isOffer } from '@/lib/pricing'
 
 const fraunces = Fraunces({ subsets: ['latin'], weight: ['500'], variable: '--font-fraunces' })
@@ -19,9 +19,7 @@ export const viewport: Viewport = {
 
 export default async function CheckoutPage({ searchParams }: { searchParams: Promise<{ offer?: string }> }) {
   const { offer } = await searchParams
-  const whatsapp = String(SUPPORT_WHATSAPP).replace(/\D/g, '')
-  const email = String(SUPPORT_EMAIL)
-  const contactHref = whatsapp ? `https://wa.me/${whatsapp}` : email ? `mailto:${email}` : null
+  const contactHref = `mailto:${SUPPORT_EMAIL}`
 
   return (
     <div className={`${fraunces.variable} ${inter.variable} flex min-h-dvh flex-col bg-[#070B24] [font-family:var(--font-inter)]`}>
@@ -46,19 +44,15 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
 
       <footer className="bg-[#0B0B0B] p-8 text-base leading-relaxed text-white">
         <div className="mx-auto flex max-w-[480px] flex-col gap-4">
-          {contactHref && (
-            <a href={contactHref} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
-              ¿Tienes dudas sobre el producto? Ponte en contacto
+          <a href={contactHref} className="underline underline-offset-4">
+            ¿Tienes dudas sobre el producto? Ponte en contacto
+          </a>
+          <p>
+            ¿No puedes finalizar la compra? Escríbenos a{' '}
+            <a href={contactHref} className="break-all underline underline-offset-4">
+              {SUPPORT_EMAIL}
             </a>
-          )}
-          {SUPPORT_EMAIL && (
-            <p>
-              ¿No puedes finalizar la compra? Escríbenos a{' '}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-4">
-                {SUPPORT_EMAIL}
-              </a>
-            </p>
-          )}
+          </p>
           <p>
             Al hacer clic en &quot;Comprar ahora&quot;, aceptas los Términos de Uso y la Política de Privacidad de
             LoteSmart y declaras ser mayor de edad.

@@ -1,7 +1,17 @@
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, Gift, MessageCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, Gift, Mail } from 'lucide-react'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
+import { after } from 'next/server'
 import { PixelPurchase } from '@/components/pixel-events'
-import { ACCESS_URL, CHECKOUT_CONFIG, DELIVERABLE_PDFS, type PdfKey, SUPPORT_WHATSAPP } from '@/lib/config'
+import {
+  ACCESS_URL,
+  CHECKOUT_CONFIG,
+  DELIVERABLE_PDFS,
+  type PdfKey,
+  PRODUCTION_URL,
+  SUPPORT_EMAIL,
+} from '@/lib/config'
+import { sendPurchaseFromBuyer } from '@/lib/server/meta-capi'
 import { isPaid } from '@/lib/server/order-token'
 import { pdfExists } from '@/lib/server/pdfs'
 
@@ -23,6 +33,11 @@ export default async function GraciasPage({ searchParams }: { searchParams: Prom
       </main>
     )
   }
+
+  const requestHeaders = new Headers(await headers())
+  const host = requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host')
+  const sourceUrl = host ? `https://${host}/gracias` : `${PRODUCTION_URL}/gracias`
+  after(() => sendPurchaseFromBuyer(claim, requestHeaders, sourceUrl).catch((e) => console.error('[meta-capi] gracias', e)))
 
   const keys: PdfKey[] = claim.bump ? ['main', 'bonus'] : ['main']
   const items: Item[] = await Promise.all(
@@ -115,30 +130,35 @@ function Paid({ email, items }: { email: string; items: Item[] }) {
         Después de descargar, abre el PDF para confirmar que se guardó bien. Desde el PDF siempre podrás volver a
         entrar a LoteSmart.
       </p>
+      <p className="text-pretty text-sm text-muted">
+        ¿Necesitas ayuda? Escríbenos a{' '}
+        <a href={SUPPORT_MAILTO} className="break-all text-ink underline underline-offset-4">
+          {SUPPORT_EMAIL}
+        </a>
+      </p>
     </section>
   )
 }
 
+const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Ayuda con mi compra de LoteSmart Colombia')}`
+
 function NotConfirmed() {
-  const wa = SUPPORT_WHATSAPP
-    ? `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent('Hola, necesito ayuda con mi compra de LoteSmart Colombia.')}`
-    : null
   return (
     <section className="flex flex-col items-center gap-5 rounded-2xl border border-line bg-card p-6 text-center">
       <h1 className="font-display text-4xl tracking-wide">Aún no vemos tu pago confirmado</h1>
       <p className="text-pretty text-muted">
-        Si acabas de pagar, espera unos segundos y recarga esta página. Si tienes dudas, escríbenos por WhatsApp.
-      </p>
-      {wa && (
-        <a
-          href={wa}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-safe px-5 py-4 font-display text-2xl tracking-wide text-[#06210f]"
-        >
-          <MessageCircle className="size-6" aria-hidden="true" /> Hablar por WhatsApp
+        Si acabas de pagar, espera unos segundos y recarga esta página. Si tienes dudas, escríbenos a{' '}
+        <a href={SUPPORT_MAILTO} className="break-all text-ink underline underline-offset-4">
+          {SUPPORT_EMAIL}
         </a>
-      )}
+        .
+      </p>
+      <a
+        href={SUPPORT_MAILTO}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-safe px-5 py-4 font-display text-2xl tracking-wide text-[#06210f]"
+      >
+        <Mail className="size-6" aria-hidden="true" /> Escribir a soporte
+      </a>
     </section>
   )
 }

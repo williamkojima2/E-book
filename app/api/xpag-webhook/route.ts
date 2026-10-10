@@ -13,10 +13,13 @@ export const runtime = 'nodejs'
  */
 export async function POST(req: Request) {
   const payload = (await req.json().catch(() => null)) as Record<string, unknown> | null
-  const txId = typeof payload?.transaction_id === 'string' ? payload.transaction_id : null
-  console.log('[checkout] webhook XPag', payload?.status, txId, payload?.external_id)
+  const nested = (payload?.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>
+  const txCandidate = payload?.transaction_id ?? nested.transaction_id ?? payload?.id ?? nested.id
+  const txId = typeof txCandidate === 'string' && txCandidate.length > 0 ? txCandidate : null
+  console.log('[checkout] webhook XPag', JSON.stringify(payload).slice(0, 600))
 
-  if (txId && payload?.status === 'confirmed') {
+  // El estado real se verifica en XPag, así que no dependemos del nombre del estado en el cuerpo.
+  if (txId) {
     const q = new URL(req.url).searchParams
     const sourceUrl = `${appUrlFrom(req)}/gracias`
     after(async () => {
