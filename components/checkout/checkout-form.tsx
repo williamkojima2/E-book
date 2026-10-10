@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useEffect, useId, useRef, useState } from 'react'
 import { CHECKOUT_CONFIG, PRICE_BUMP, PRICE_BUMP_BEFORE } from '@/lib/config'
 import { EMAIL_RE, type Offer, OFFER_PRICES, PHONE_RE } from '@/lib/pricing'
-import { trackWithServer } from '@/lib/tracking'
+import { trackCheckout } from '@/lib/tracking'
 import { cn } from '@/lib/utils'
 import { createPayment, type MethodId, type PaymentItem } from './create-payment'
 import { WaitingScreen } from './waiting-screen'
@@ -160,7 +160,7 @@ export function CheckoutForm({ offer }: { offer: Offer }) {
   useEffect(() => {
     if (initiated.current) return
     initiated.current = true
-    trackWithServer('InitiateCheckout', { value: price, currency: 'COP', content_name: CHECKOUT_CONFIG.productName })
+    trackCheckout('InitiateCheckout', { value: price, currency: 'COP', content_name: CHECKOUT_CONFIG.productName })
   }, [price])
 
   const update = (field: FieldName, raw: string) => {
@@ -173,7 +173,7 @@ export function CheckoutForm({ offer }: { offer: Offer }) {
     setErrors((e) => ({ ...e, form: undefined }))
     if (!trackedMethods.current.has(next)) {
       trackedMethods.current.add(next)
-      trackWithServer('AddPaymentInfo', { value: total, currency: 'COP', payment_type: next })
+      trackCheckout('AddPaymentInfo', { value: total, currency: 'COP', payment_type: next })
     }
   }
 
