@@ -7,7 +7,7 @@ export const VTURB_SCRIPT_SRC = `https://scripts.converteai.net/7f3fcd43-660b-42
 export const META_PIXEL_ID = '637178892282743'
 export const META_PIXEL_ENABLED = true
 /** Origen del tráfico → pixel adicional que también recibe los eventos. */
-export const META_ORIGIN_PIXELS: Record<string, string> = { '105': '1051392353893964' }
+export const META_ORIGIN_PIXELS: Record<string, string> = {}
 /** Parámetros de URL donde se lee el origen (el primero que tenga valor). */
 export const META_ORIGIN_PARAMS = ['origem', 'origen', 'src', 'utm_source']
 
