@@ -11,6 +11,27 @@ export function track(event: string, params?: Record<string, unknown>) {
   window.fbq('track', event, params)
 }
 
+/**
+ * Queues the event even if fbevents.js hasn't finished loading: the inline snippet defines
+ * a `fbq` stub that buffers calls, so we wait briefly for it instead of dropping the event.
+ */
+export function trackCheckout(
+  event: 'InitiateCheckout' | 'AddPaymentInfo',
+  params: { value: number; currency: 'COP'; content_name?: string; payment_type?: string },
+) {
+  if (typeof window === 'undefined') return
+  const eventID = `${event}-${crypto.randomUUID()}`
+  let attempts = 0
+  const send = () => {
+    if (window.fbq) {
+      window.fbq('track', event, params, { eventID })
+      return
+    }
+    if (++attempts < 40) window.setTimeout(send, 250)
+  }
+  send()
+}
+
 const PASSTHROUGH = /^(utm_.+|sck|fbclid)$/
 
 export function buildCheckoutUrl(base: string) {
