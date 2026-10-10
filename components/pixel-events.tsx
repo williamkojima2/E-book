@@ -20,13 +20,14 @@ export function PixelPageView() {
 
 export function PixelPurchase({ orderRef, value }: { orderRef: string; value: number }) {
   useEffect(() => {
+    if (!window.fbq) return
     const key = `ls_purchase_${orderRef}`
     try {
       if (window.localStorage.getItem(key)) return
       window.localStorage.setItem(key, '1')
     } catch {}
     // eventID lets Meta deduplicate if the buyer reloads in another browser/tab.
-    window.fbq?.('track', 'Purchase', { value, currency: 'COP', content_name: 'LoteSmart Colombia' }, { eventID: orderRef })
+    window.fbq('track', 'Purchase', { value, currency: 'COP', content_name: 'LoteSmart Colombia' }, { eventID: orderRef })
   }, [orderRef, value])
   return null
 }
