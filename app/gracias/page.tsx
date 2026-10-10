@@ -38,7 +38,7 @@ export default async function GraciasPage({ searchParams }: { searchParams: Prom
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center gap-6 px-4 py-10">
       <Paid email={claim.email} items={items} />
-      <PixelPurchase orderRef={claim.ref} value={claim.amount} />
+      <PixelPurchase paymentId={claim.tx} offer={claim.offer} bump={claim.bump} />
     </main>
   )
 }

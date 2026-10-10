@@ -1,30 +1,37 @@
+import { META_PIXEL_ID } from '@/lib/config'
+
 type Fbq = (...args: unknown[]) => void
 
 declare global {
   interface Window {
     fbq?: Fbq
+    __lsPixels?: string[]
   }
 }
 
-export function track(event: string, params?: Record<string, unknown>) {
-  if (typeof window === 'undefined' || !window.fbq) return
-  window.fbq('track', event, params)
+const ORIGIN_KEY = 'ls_origin'
+const IC_KEY = 'ls_ic'
+
+export function trafficOrigin(): string | null {
+  try {
+    return window.sessionStorage.getItem(ORIGIN_KEY)
+  } catch {
+    return null
+  }
 }
 
 /**
- * Queues the event even if fbevents.js hasn't finished loading: the inline snippet defines
- * a `fbq` stub that buffers calls, so we wait briefly for it instead of dropping the event.
+ * Envía con trackSingle a cada pixel activo (general + el del origen). Espera brevemente a fbq
+ * por si el snippet aún no corrió, en lugar de perder el evento.
  */
-export function trackCheckout(
-  event: 'InitiateCheckout' | 'AddPaymentInfo',
-  params: { value: number; currency: 'COP'; content_name?: string; payment_type?: string },
-) {
+export function trackPixels(event: string, params?: Record<string, unknown>, eventID?: string) {
   if (typeof window === 'undefined') return
-  const eventID = `${event}-${crypto.randomUUID()}`
   let attempts = 0
   const send = () => {
     if (window.fbq) {
-      window.fbq('track', event, params, { eventID })
+      for (const id of window.__lsPixels ?? [META_PIXEL_ID]) {
+        window.fbq('trackSingle', id, event, params ?? {}, eventID ? { eventID } : undefined)
+      }
       return
     }
     if (++attempts < 40) window.setTimeout(send, 250)
@@ -32,7 +39,30 @@ export function trackCheckout(
   send()
 }
 
-const PASSTHROUGH = /^(utm_.+|sck|fbclid)$/
+export function track(event: string, params?: Record<string, unknown>) {
+  trackPixels(event, params)
+}
+
+export function trackInitiateCheckout(params: { value: number; currency: 'COP'; content_name: string }) {
+  trackPixels('InitiateCheckout', params, `ic_${crypto.randomUUID()}`)
+  try {
+    window.sessionStorage.setItem(IC_KEY, '1')
+  } catch {}
+}
+
+/** Solo dispara si el clic del CTA no lo hizo ya (ej. alguien que entra directo al checkout). */
+export function trackInitiateCheckoutOnce(params: { value: number; currency: 'COP'; content_name: string }) {
+  try {
+    if (window.sessionStorage.getItem(IC_KEY)) return
+  } catch {}
+  trackInitiateCheckout(params)
+}
+
+export function trackAddPaymentInfo(params: { value: number; currency: 'COP'; payment_type: string }) {
+  trackPixels('AddPaymentInfo', params, `api_${crypto.randomUUID()}`)
+}
+
+const PASSTHROUGH = /^(utm_.+|sck|fbclid|origem|origen|src)$/
 
 export function buildCheckoutUrl(base: string) {
   if (typeof window === 'undefined') return base
@@ -44,11 +74,13 @@ export function buildCheckoutUrl(base: string) {
   return url.toString()
 }
 
-export function goToCheckout(base: string) {
+export function goToCheckout(base: string, ic?: { value: number; content_name: string }) {
+  if (ic) trackInitiateCheckout({ ...ic, currency: 'COP' })
   const href = buildCheckoutUrl(base)
+  // Deja tiempo a que el pixel envíe el InitiateCheckout antes de navegar.
   window.setTimeout(() => {
     window.location.href = href
-  }, 150)
+  }, 300)
 }
 
 const formatter = new Intl.DateTimeFormat('es-CO', {

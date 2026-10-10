@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { CHECKOUT_DISCOUNT_PATH, PRICE_MAIN, PRICE_SCRATCH } from '@/lib/config'
+import { CHECKOUT_CONFIG, CHECKOUT_DISCOUNT_PATH, PRICE_MAIN, PRICE_SCRATCH } from '@/lib/config'
 import { goToCheckout } from '@/lib/tracking'
 import { Confetti, GoldButton } from './shared'
 
@@ -121,7 +121,7 @@ export function ScratchModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {revealed ? (
-          <GoldButton pulse onClick={() => goToCheckout(CHECKOUT_DISCOUNT_PATH)}>
+          <GoldButton pulse onClick={() => goToCheckout(CHECKOUT_DISCOUNT_PATH, { value: PRICE_SCRATCH, content_name: CHECKOUT_CONFIG.productName })}>
             Aprovechar este precio →
           </GoldButton>
         ) : (

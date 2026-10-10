@@ -1,12 +1,50 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
+import { orderFromAmount } from '@/lib/meta'
+import { sendPurchaseCapi } from '@/lib/server/meta-capi'
+import { appUrlFrom, clip } from '@/lib/server/request'
+import { consultTransaction } from '@/lib/server/xpag'
 
 export const runtime = 'nodejs'
 
-/** Sin base de datos no hay estado que actualizar: el estado se consulta en vivo en XPag. Solo confirmamos la recepción. */
+/**
+ * Sin base de datos: el estado se consulta en vivo en XPag. Al confirmarse el pago enviamos el Purchase por CAPI.
+ * Nunca confiamos en el cuerpo del webhook: el pago se verifica en XPag (estado, monto y moneda).
+ * Los datos de atribución (email hasheado, fbp, fbc, ip, ua, origen) viajan en la query de webhook_url.
+ */
 export async function POST(req: Request) {
   const payload = (await req.json().catch(() => null)) as Record<string, unknown> | null
-  if (payload) {
-    console.log('[checkout] webhook XPag', payload.status, payload.transaction_id, payload.external_id)
+  const txId = typeof payload?.transaction_id === 'string' ? payload.transaction_id : null
+  console.log('[checkout] webhook XPag', payload?.status, txId, payload?.external_id)
+
+  if (txId && payload?.status === 'confirmed') {
+    const q = new URL(req.url).searchParams
+    const sourceUrl = `${appUrlFrom(req)}/gracias`
+    after(async () => {
+      try {
+        const tx = await consultTransaction(txId)
+        if (tx.status !== 'confirmed' || (tx.currency && tx.currency !== 'COP')) return
+        const order = orderFromAmount(Math.round(tx.amount))
+        if (!order) {
+          console.error('[meta-capi] Monto sin oferta conocida', txId, tx.amount)
+          return
+        }
+        await sendPurchaseCapi({
+          paymentId: txId,
+          ...order,
+          origin: clip(q.get('o'), 20),
+          user: {
+            emailHash: /^[a-f0-9]{64}$/.test(q.get('em') ?? '') ? (q.get('em') as string) : undefined,
+            fbp: clip(q.get('fbp') ?? undefined),
+            fbc: clip(q.get('fbc') ?? undefined, 300),
+            ip: clip(q.get('ip') ?? undefined, 64),
+            ua: clip(q.get('ua') ?? undefined, 400),
+          },
+          sourceUrl,
+        })
+      } catch (e) {
+        console.error('[meta-capi] webhook', txId, e)
+      }
+    })
   }
   return NextResponse.json({ ok: true })
 }

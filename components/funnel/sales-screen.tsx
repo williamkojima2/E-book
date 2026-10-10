@@ -72,7 +72,7 @@ export function SalesScreen() {
 
   const buy = () => {
     clickedBuy.current = true
-    goToCheckout(CHECKOUT_MAIN_PATH)
+    goToCheckout(CHECKOUT_MAIN_PATH, { value: PRICE_MAIN, content_name: CHECKOUT_CONFIG.productName })
   }
 
   const scrollToBuy = () => buyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })

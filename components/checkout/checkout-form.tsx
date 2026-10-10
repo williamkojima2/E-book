@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useEffect, useId, useRef, useState } from 'react'
 import { CHECKOUT_CONFIG, PRICE_BUMP, PRICE_BUMP_BEFORE } from '@/lib/config'
 import { EMAIL_RE, type Offer, OFFER_PRICES, PHONE_RE } from '@/lib/pricing'
-import { trackCheckout } from '@/lib/tracking'
+import { trackAddPaymentInfo, trackInitiateCheckoutOnce, trafficOrigin } from '@/lib/tracking'
 import { cn } from '@/lib/utils'
 import { createPayment, type MethodId, type PaymentItem } from './create-payment'
 import { WaitingScreen } from './waiting-screen'
@@ -75,6 +75,7 @@ function collectTracking() {
     fbp: readCookie('_fbp'),
     fbc: readCookie('_fbc') ?? (fbclid ? `fb.1.${Date.now()}.${fbclid}` : undefined),
     pageUrl: window.location.href,
+    origin: trafficOrigin(),
     utm,
   }
 }
@@ -160,7 +161,7 @@ export function CheckoutForm({ offer }: { offer: Offer }) {
   useEffect(() => {
     if (initiated.current) return
     initiated.current = true
-    trackCheckout('InitiateCheckout', { value: price, currency: 'COP', content_name: CHECKOUT_CONFIG.productName })
+    trackInitiateCheckoutOnce({ value: price, currency: 'COP', content_name: CHECKOUT_CONFIG.productName })
   }, [price])
 
   const update = (field: FieldName, raw: string) => {
@@ -173,7 +174,7 @@ export function CheckoutForm({ offer }: { offer: Offer }) {
     setErrors((e) => ({ ...e, form: undefined }))
     if (!trackedMethods.current.has(next)) {
       trackedMethods.current.add(next)
-      trackCheckout('AddPaymentInfo', { value: total, currency: 'COP', payment_type: next })
+      trackAddPaymentInfo({ value: total, currency: 'COP', payment_type: next })
     }
   }
 
