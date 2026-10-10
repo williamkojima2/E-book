@@ -2,7 +2,9 @@
 
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef } from 'react'
-import { track } from '@/lib/tracking'
+import { purchaseCustomData, purchaseEvents } from '@/lib/meta'
+import type { Offer } from '@/lib/pricing'
+import { trackPixels } from '@/lib/tracking'
 
 // The inline pixel script tracks the first PageView; this covers client-side route changes.
 export function PixelPageView() {
@@ -13,21 +15,22 @@ export function PixelPageView() {
       first.current = false
       return
     }
-    track('PageView')
+    trackPixels('PageView')
   }, [pathname])
   return null
 }
 
-export function PixelPurchase({ orderRef, value }: { orderRef: string; value: number }) {
+/** Un Purchase por producto, con el mismo eventID que envía el webhook por CAPI para que Meta deduplique. */
+export function PixelPurchase({ paymentId, offer, bump }: { paymentId: string; offer: Offer; bump: boolean }) {
   useEffect(() => {
-    if (!window.fbq) return
-    const key = `ls_purchase_${orderRef}`
-    try {
-      if (window.localStorage.getItem(key)) return
-      window.localStorage.setItem(key, '1')
-    } catch {}
-    // eventID lets Meta deduplicate if the buyer reloads in another browser/tab.
-    window.fbq('track', 'Purchase', { value, currency: 'COP', content_name: 'LoteSmart Colombia' }, { eventID: orderRef })
-  }, [orderRef, value])
+    for (const event of purchaseEvents(paymentId, offer, bump)) {
+      const key = `ls_${event.eventId}`
+      try {
+        if (window.localStorage.getItem(key)) continue
+        window.localStorage.setItem(key, '1')
+      } catch {}
+      trackPixels('Purchase', purchaseCustomData(event), event.eventId)
+    }
+  }, [paymentId, offer, bump])
   return null
 }
