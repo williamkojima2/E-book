@@ -4,7 +4,7 @@ export const PREVIEW_MODE = false
 export const VTURB_PLAYER_ID = '6abda8735cd352c8993b9818'
 export const VTURB_SCRIPT_SRC = `https://scripts.converteai.net/7f3fcd43-660b-42df-a7ef-1acc8cfb4924/players/${VTURB_PLAYER_ID}/v4/player.js`
 
-export const META_PIXEL_ID = '637178892282743'
+export const META_PIXEL_ID = '1051392353893964'
 export const META_PIXEL_ENABLED = true
 /** Origen del tráfico → pixel adicional que también recibe los eventos. */
 export const META_ORIGIN_PIXELS: Record<string, string> = {}
