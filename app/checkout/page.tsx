@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from 'next'
 import { Fraunces, Inter } from 'next/font/google'
 import Image from 'next/image'
-import { CheckoutForm } from '@/components/checkout/checkout-form'
+import { redirect } from 'next/navigation'
+import { CheckoutForm, type ResumeOrder } from '@/components/checkout/checkout-form'
 import { SUPPORT_EMAIL } from '@/lib/config'
 import { isOffer } from '@/lib/pricing'
+import { paymentStatus, verifyOrder } from '@/lib/server/order-token'
+import { isSandbox } from '@/lib/server/xpag'
 
 const fraunces = Fraunces({ subsets: ['latin'], weight: ['500'], variable: '--font-fraunces' })
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -17,8 +20,47 @@ export const viewport: Viewport = {
   themeColor: '#070B24',
 }
 
-export default async function CheckoutPage({ searchParams }: { searchParams: Promise<{ offer?: string }> }) {
-  const { offer } = await searchParams
+function safeCheckoutUrl(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    const trusted = url.hostname === 'magenpay.io' || url.hostname.endsWith('.magenpay.io')
+    return url.protocol === 'https:' && trusted ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+async function resumeOrder(token: string | undefined, savedUrl: string | undefined): Promise<ResumeOrder | null> {
+  const claim = verifyOrder(token)
+  if (!claim || !token) return null
+  let result: Awaited<ReturnType<typeof paymentStatus>>
+  try {
+    result = await paymentStatus(claim)
+  } catch (e) {
+    console.error('[checkout] resume', claim.ref, e)
+    return null
+  }
+  if (result.status === 'paid') redirect(`/gracias?t=${encodeURIComponent(token)}`)
+  const checkoutUrl = result.checkoutUrl ?? safeCheckoutUrl(savedUrl)
+  if (result.status !== 'pending' || !checkoutUrl) return null
+  return {
+    token,
+    checkoutUrl,
+    sandbox: isSandbox,
+    offer: claim.offer,
+    bump: claim.bump,
+    method: claim.method === 'NEQUI' ? 'nequi' : 'breb',
+  }
+}
+
+export default async function CheckoutPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ offer?: string; t?: string; p?: string }>
+}) {
+  const { offer, t, p } = await searchParams
+  const resume = await resumeOrder(t, p)
   const contactHref = `mailto:${SUPPORT_EMAIL}`
 
   return (
@@ -39,7 +81,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           height={768}
           className="h-auto w-full rounded-xl"
         />
-        <CheckoutForm offer={isOffer(offer) ? offer : 'main'} />
+        <CheckoutForm offer={resume?.offer ?? (isOffer(offer) ? offer : 'main')} resume={resume} />
       </main>
 
       <footer className="bg-[#0B0B0B] p-8 text-base leading-relaxed text-white">

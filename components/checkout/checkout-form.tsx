@@ -138,21 +138,38 @@ function format(field: FieldName, raw: string) {
   return raw
 }
 
-export function CheckoutForm({ offer }: { offer: Offer }) {
+export type ResumeOrder = Created & { offer: Offer; bump: boolean; method: MethodId }
+
+/** Guarda el pedido en la URL: si el comprador vuelve, recarga o el celular cierra la pestaña, no pierde el acceso. */
+function rememberOrder(order: { token: string; checkoutUrl: string } | null) {
+  const url = new URL(window.location.href)
+  if (order) {
+    url.searchParams.set('t', order.token)
+    url.searchParams.set('p', order.checkoutUrl)
+  } else {
+    url.searchParams.delete('t')
+    url.searchParams.delete('p')
+  }
+  window.history.replaceState(window.history.state, '', url)
+}
+
+export function CheckoutForm({ offer, resume }: { offer: Offer; resume?: ResumeOrder | null }) {
   const ids = useId()
   const price = OFFER_PRICES[offer]
   const hasCard = PAYMENT_METHODS.includes('card')
   const [values, setValues] = useState<Values>(EMPTY)
-  const [method, setMethod] = useState<MethodId>(PAYMENT_METHODS[0] ?? 'nequi')
+  const [method, setMethod] = useState<MethodId>(resume?.method ?? PAYMENT_METHODS[0] ?? 'nequi')
   const [showAllMethods, setShowAllMethods] = useState(false)
   const [installments, setInstallments] = useState(1)
   const [showAllInstallments, setShowAllInstallments] = useState(false)
-  const [bump, setBump] = useState(false)
+  const [bump, setBump] = useState(resume?.bump ?? false)
   const [bumpInstallments, setBumpInstallments] = useState(1)
   const [errors, setErrors] = useState<Errors>({})
   const [submitting, setSubmitting] = useState(false)
-  const [retryToken, setRetryToken] = useState<string | null>(null)
-  const [created, setCreated] = useState<Created | null>(null)
+  const [retryToken, setRetryToken] = useState<string | null>(resume?.token ?? null)
+  const [created, setCreated] = useState<Created | null>(
+    resume ? { token: resume.token, checkoutUrl: resume.checkoutUrl, sandbox: resume.sandbox } : null,
+  )
   const initiated = useRef(false)
   const trackedMethods = useRef(new Set<MethodId>())
 
@@ -206,6 +223,7 @@ export function CheckoutForm({ offer }: { offer: Offer }) {
     )
     if (result.ok) {
       setRetryToken(result.token)
+      rememberOrder({ token: result.token, checkoutUrl: result.checkoutUrl })
       setCreated({ token: result.token, checkoutUrl: result.checkoutUrl, sandbox: result.sandbox })
     } else {
       setRetryToken(result.token && result.retryable ? result.token : null)
@@ -252,6 +270,7 @@ export function CheckoutForm({ offer }: { offer: Offer }) {
           methodLabel={method === 'nequi' ? 'Nequi' : method === 'breb' ? 'Bre-B' : 'Tarjeta'}
           total={total}
           onRestart={() => {
+            rememberOrder(null)
             setCreated(null)
             setRetryToken(null)
           }}
