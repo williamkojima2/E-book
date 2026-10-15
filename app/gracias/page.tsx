@@ -71,8 +71,8 @@ function Paid({ email, items }: { email: string; items: Item[] }) {
             Descarga tu PDF ahora mismo
           </p>
           <p className="text-pretty text-sm leading-relaxed text-ink">
-            Esta página es de un solo uso: después de cerrarla <strong>no podrás volver a abrirla</strong>. El PDF
-            contiene el enlace de acceso y todas las instrucciones, así que guárdalo en tu celular antes de salir.
+            El PDF contiene el enlace de acceso y todas las instrucciones. <strong>Guárdalo en tu celular</strong> y
+            guarda también el enlace de esta página: podrás volver a abrirla durante 30 días.
           </p>
         </div>
       </div>
