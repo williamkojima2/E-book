@@ -1,17 +1,6 @@
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, Gift, Mail } from 'lucide-react'
 import type { Metadata } from 'next'
-import { headers } from 'next/headers'
-import { after } from 'next/server'
-import { PixelPurchase } from '@/components/pixel-events'
-import {
-  ACCESS_URL,
-  CHECKOUT_CONFIG,
-  DELIVERABLE_PDFS,
-  type PdfKey,
-  PRODUCTION_URL,
-  SUPPORT_EMAIL,
-} from '@/lib/config'
-import { sendPurchaseFromBuyer } from '@/lib/server/meta-capi'
+import { ACCESS_URL, CHECKOUT_CONFIG, DELIVERABLE_PDFS, type PdfKey, SUPPORT_EMAIL } from '@/lib/config'
 import { isPaid } from '@/lib/server/order-token'
 import { pdfExists } from '@/lib/server/pdfs'
 
@@ -34,11 +23,6 @@ export default async function GraciasPage({ searchParams }: { searchParams: Prom
     )
   }
 
-  const requestHeaders = new Headers(await headers())
-  const host = requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host')
-  const sourceUrl = host ? `https://${host}/gracias` : `${PRODUCTION_URL}/gracias`
-  after(() => sendPurchaseFromBuyer(claim, requestHeaders, sourceUrl).catch((e) => console.error('[meta-capi] gracias', e)))
-
   const keys: PdfKey[] = claim.bump ? ['main', 'bonus'] : ['main']
   const items: Item[] = await Promise.all(
     keys.map(async (key) => ({
@@ -53,7 +37,6 @@ export default async function GraciasPage({ searchParams }: { searchParams: Prom
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center gap-6 px-4 py-10">
       <Paid email={claim.email} items={items} />
-      <PixelPurchase paymentId={claim.tx} offer={claim.offer} bump={claim.bump} />
     </main>
   )
 }
