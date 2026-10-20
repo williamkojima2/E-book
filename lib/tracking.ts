@@ -44,7 +44,21 @@ export function track(event: string, params?: Record<string, unknown>) {
 }
 
 export function trackInitiateCheckout(params: { value: number; currency: 'COP'; content_name: string }) {
-  trackPixels('InitiateCheckout', params, `ic_${crypto.randomUUID()}`)
+  const eventId = `ic_${crypto.randomUUID()}`
+  trackPixels('InitiateCheckout', params, eventId)
+  try {
+    fetch('/api/meta/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventId,
+        value: params.value,
+        origin: trafficOrigin(),
+        path: window.location.pathname + window.location.search,
+      }),
+      keepalive: true,
+    }).catch(() => {})
+  } catch {}
   try {
     window.sessionStorage.setItem(IC_KEY, '1')
   } catch {}

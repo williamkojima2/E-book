@@ -50,6 +50,52 @@ export async function sendPurchaseFromBuyer(
   })
 }
 
+export async function sendBrowserEventCapi(input: {
+  eventName: 'InitiateCheckout'
+  eventId: string
+  customData: Record<string, unknown>
+  origin?: string | null
+  headers: Headers
+  sourceUrl: string
+}) {
+  const cookie = input.headers.get('cookie')
+  const data = [
+    {
+      event_name: input.eventName,
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: input.eventId,
+      action_source: 'website',
+      event_source_url: input.sourceUrl,
+      user_data: {
+        fbp: readCookie(cookie, '_fbp'),
+        fbc: readCookie(cookie, '_fbc'),
+        client_ip_address:
+          input.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || input.headers.get('x-real-ip') || undefined,
+        client_user_agent: input.headers.get('user-agent')?.slice(0, 400) ?? undefined,
+      },
+      custom_data: input.customData,
+    },
+  ]
+
+  await Promise.all(
+    pixelsForOrigin(input.origin).map(async (pixelId) => {
+      const token = tokenFor(pixelId)
+      if (!token) return
+      try {
+        const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${pixelId}/events?access_token=${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data }),
+          signal: AbortSignal.timeout(8_000),
+        })
+        if (!res.ok) console.error(`[meta-capi] ${input.eventName} rechazado`, pixelId, res.status, await res.text())
+      } catch (e) {
+        console.error(`[meta-capi] Error enviando ${input.eventName}`, pixelId, e)
+      }
+    }),
+  )
+}
+
 export async function sendPurchaseCapi(input: {
   paymentId: string
   offer: Offer
