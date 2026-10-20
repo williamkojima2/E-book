@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { computeAmount, EMAIL_RE, isOffer, isPayMethod, PHONE_RE } from '@/lib/pricing'
 import { type OrderClaim, paymentStatus, signOrder, verifyOrder } from '@/lib/server/order-token'
-import { appUrlFrom } from '@/lib/server/request'
+import { sha256 } from '@/lib/server/meta-capi'
+import { appUrlFrom, clientIp, clip } from '@/lib/server/request'
 import { consultTransaction, createCashin, isSandbox, RETRYABLE, XPagError } from '@/lib/server/xpag'
 
 export const runtime = 'nodejs'
@@ -29,6 +30,23 @@ async function cashinWithRetry(input: Parameters<typeof createCashin>[0]) {
       throw e
     }
   }
+}
+
+/** Datos de atribución para el Purchase por CAPI; el webhook los lee de la query porque no hay base de datos. */
+function webhookUrlFor(req: Request, appUrl: string, email: string, tracking: unknown) {
+  const t = (tracking && typeof tracking === 'object' ? tracking : {}) as Record<string, unknown>
+  const params = new URLSearchParams({ em: sha256(email) })
+  const fbp = clip(t.fbp)
+  const fbc = clip(t.fbc, 300)
+  const origin = clip(t.origin, 20)
+  const ip = clientIp(req)
+  const ua = clip(req.headers.get('user-agent') ?? undefined, 400)
+  if (fbp && /^fb\.\d\.\d+\.\d+$/.test(fbp)) params.set('fbp', fbp)
+  if (fbc && /^fb\.\d\.\d+\..+$/.test(fbc)) params.set('fbc', fbc)
+  if (origin && /^[\w-]+$/.test(origin)) params.set('o', origin)
+  if (ip) params.set('ip', ip)
+  if (ua) params.set('ua', ua)
+  return `${appUrl}/api/xpag-webhook?${params}`
 }
 
 async function waitForCheckoutUrl(transactionId: string) {
@@ -93,7 +111,7 @@ export async function POST(req: Request) {
       amount,
       phone,
       externalId: ref,
-      webhookUrl: `${appUrl}/api/xpag-webhook`,
+      webhookUrl: webhookUrlFor(req, appUrl, email, body.tracking),
       appUrl,
     })
     const claim: OrderClaim = { ref, tx: cashin.transactionId, offer, bump, amount, email, phone, method, iat: Date.now() }
