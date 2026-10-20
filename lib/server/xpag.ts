@@ -77,14 +77,28 @@ async function call(path: string, init: { method: 'GET' | 'POST'; body?: unknown
   return data
 }
 
+// XPag reports approved cash-ins as either "confirmed" or "completed"; failures also come under several names.
+const PAID_STATUSES = new Set(['confirmed', 'completed', 'paid', 'approved', 'success', 'succeeded'])
+const FAILED_STATUSES = new Set(['failed', 'rejected', 'declined', 'cancelled', 'canceled', 'error', 'refused'])
+
+export function normalizeStatus(raw: unknown): TxStatus {
+  const s = String(raw ?? 'pending').trim().toLowerCase()
+  if (PAID_STATUSES.has(s)) return 'confirmed'
+  if (FAILED_STATUSES.has(s)) return 'failed'
+  if (s === 'expired') return 'expired'
+  return 'pending'
+}
+
 function toTxInfo(d: Raw): TxInfo {
+  const nested = (d.data && typeof d.data === 'object' ? d.data : {}) as Raw
+  const src = d.status === undefined && nested.status !== undefined ? nested : d
   return {
-    status: String(d.status ?? 'pending'),
-    amount: Number(d.amount ?? 0),
-    currency: str(d.currency),
-    transactionId: String(d.transaction_id ?? ''),
-    e2e: str(d.e2e),
-    checkoutUrl: str(d.checkout_url),
+    status: normalizeStatus(src.status),
+    amount: Number(src.amount ?? d.amount ?? 0),
+    currency: str(src.currency ?? d.currency)?.toUpperCase() ?? null,
+    transactionId: String(src.transaction_id ?? d.transaction_id ?? ''),
+    e2e: str(src.e2e ?? d.e2e),
+    checkoutUrl: str(src.checkout_url ?? d.checkout_url),
   }
 }
 

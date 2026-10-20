@@ -59,10 +59,14 @@ export function verifyOrder(token: string | null | undefined): OrderClaim | null
 export async function paymentStatus(claim: OrderClaim): Promise<{ status: PayStatus; checkoutUrl: string | null }> {
   const tx = await consultTransaction(claim.tx)
   if (tx.status === 'confirmed') {
-    const ok = Math.round(tx.amount) === claim.amount && (!tx.currency || tx.currency === 'COP')
-    if (!ok) {
-      console.error('[checkout] Confirmación rechazada por monto/moneda', { ref: claim.ref, tx: claim.tx, got: tx.amount })
+    if (tx.currency && tx.currency !== 'COP') {
+      console.error('[checkout] Confirmación rechazada por moneda', { ref: claim.ref, tx: claim.tx, got: tx.currency })
       return { status: 'pending', checkoutUrl: tx.checkoutUrl }
+    }
+    // The transaction id is bound to this signed order and was created server-side with claim.amount,
+    // so a different reported amount (e.g. net of fees) is logged instead of blocking delivery.
+    if (Math.round(tx.amount) !== claim.amount) {
+      console.warn('[checkout] Monto reportado distinto', { ref: claim.ref, tx: claim.tx, expected: claim.amount, got: tx.amount })
     }
     return { status: 'paid', checkoutUrl: tx.checkoutUrl }
   }
