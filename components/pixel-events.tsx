@@ -20,7 +20,7 @@ export function PixelPageView() {
   return null
 }
 
-/** Un Purchase por producto, con el mismo eventID que envía el webhook por CAPI para que Meta deduplique. */
+/** Un Purchase por pago, con el mismo eventID que envía el servidor por CAPI para que Meta deduplique. */
 export function PixelPurchase({ paymentId, offer, bump }: { paymentId: string; offer: Offer; bump: boolean }) {
   useEffect(() => {
     for (const event of purchaseEvents(paymentId, offer, bump)) {
