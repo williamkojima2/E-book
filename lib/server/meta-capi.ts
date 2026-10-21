@@ -17,6 +17,7 @@ function tokenFor(pixelId: string) {
 
 export type CapiUser = {
   emailHash?: string
+  phoneHash?: string
   fbp?: string
   fbc?: string
   ip?: string
@@ -26,28 +27,6 @@ export type CapiUser = {
 function readCookie(cookieHeader: string | null, name: string) {
   const match = cookieHeader?.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`))
   return match ? decodeURIComponent(match[1]).slice(0, 300) : undefined
-}
-
-/** Respaldo cuando el webhook no llega: se envía desde la petición del propio comprador (mismo event_id → Meta deduplica). */
-export async function sendPurchaseFromBuyer(
-  claim: { tx: string; offer: Offer; bump: boolean; email: string },
-  headers: Headers,
-  sourceUrl: string,
-) {
-  const cookie = headers.get('cookie')
-  await sendPurchaseCapi({
-    paymentId: claim.tx,
-    offer: claim.offer,
-    bump: claim.bump,
-    user: {
-      emailHash: claim.email ? sha256(claim.email) : undefined,
-      fbp: readCookie(cookie, '_fbp'),
-      fbc: readCookie(cookie, '_fbc'),
-      ip: headers.get('x-forwarded-for')?.split(',')[0]?.trim() || headers.get('x-real-ip') || undefined,
-      ua: headers.get('user-agent')?.slice(0, 400) ?? undefined,
-    },
-    sourceUrl,
-  })
 }
 
 export async function sendBrowserEventCapi(input: {
@@ -113,6 +92,7 @@ export async function sendPurchaseCapi(input: {
     event_source_url: input.sourceUrl,
     user_data: {
       em: input.user.emailHash ? [input.user.emailHash] : undefined,
+      ph: input.user.phoneHash ? [input.user.phoneHash] : undefined,
       external_id: [sha256(input.paymentId)],
       fbp: input.user.fbp,
       fbc: input.user.fbc,
@@ -122,10 +102,10 @@ export async function sendPurchaseCapi(input: {
     custom_data: purchaseCustomData(e),
   }))
 
-  await Promise.all(
+  const results = await Promise.all(
     pixelsForOrigin(input.origin).map(async (pixelId) => {
       const token = tokenFor(pixelId)
-      if (!token) return
+      if (!token) return false
       try {
         const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${pixelId}/events?access_token=${token}`, {
           method: 'POST',
@@ -133,11 +113,17 @@ export async function sendPurchaseCapi(input: {
           body: JSON.stringify({ data }),
           signal: AbortSignal.timeout(8_000),
         })
-        if (!res.ok) console.error('[meta-capi] Purchase rechazado', pixelId, res.status, await res.text())
-        else console.log('[meta-capi] Purchase enviado', pixelId, input.paymentId, data.length)
+        if (!res.ok) {
+          console.error('[meta-capi] Purchase rechazado', pixelId, res.status, await res.text())
+          return false
+        }
+        console.log('[meta-capi] Purchase enviado', pixelId, input.paymentId)
+        return true
       } catch (e) {
         console.error('[meta-capi] Error enviando Purchase', pixelId, e)
+        return false
       }
     }),
   )
+  return results.some(Boolean)
 }

@@ -21,7 +21,7 @@ export function purchaseEvents(paymentId: string, offer: Offer, bump: boolean): 
   if (bump) items.push({ id: META_PRODUCTS.bump.id, name: META_PRODUCTS.bump.name, price: PRICE_BUMP })
   return [
     {
-      eventId: `purchase_${paymentId}`,
+      eventId: paymentId,
       value: items.reduce((sum, i) => sum + i.price, 0),
       plan: offer,
       items,

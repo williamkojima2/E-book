@@ -33,9 +33,11 @@ async function cashinWithRetry(input: Parameters<typeof createCashin>[0]) {
 }
 
 /** Datos de atribución para el Purchase por CAPI; el webhook los lee de la query porque no hay base de datos. */
-function webhookUrlFor(req: Request, appUrl: string, email: string, tracking: unknown) {
+function webhookUrlFor(req: Request, appUrl: string, email: string, phone: string, tracking: unknown) {
   const t = (tracking && typeof tracking === 'object' ? tracking : {}) as Record<string, unknown>
   const params = new URLSearchParams({ em: sha256(email) })
+  // Meta expects phones with country code and digits only (Colombia = 57).
+  if (phone) params.set('ph', sha256(`57${phone}`))
   const fbp = clip(t.fbp)
   const fbc = clip(t.fbc, 300)
   const origin = clip(t.origin, 20)
@@ -111,7 +113,7 @@ export async function POST(req: Request) {
       amount,
       phone,
       externalId: ref,
-      webhookUrl: webhookUrlFor(req, appUrl, email, body.tracking),
+      webhookUrl: webhookUrlFor(req, appUrl, email, phone, body.tracking),
       appUrl,
     })
     const claim: OrderClaim = { ref, tx: cashin.transactionId, offer, bump, amount, email, phone, method, iat: Date.now() }
