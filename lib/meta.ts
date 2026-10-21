@@ -6,45 +6,38 @@ export const META_PRODUCTS = {
   bump: { id: 'bonos-lotesmart', name: CHECKOUT_CONFIG.bumpName },
 } as const
 
+type PurchaseItem = { id: string; name: string; price: number }
+
 export type PurchaseEvent = {
   eventId: string
-  productId: string
-  name: string
   value: number
-  plan: string
+  plan: Offer
+  items: PurchaseItem[]
 }
 
-/** Un evento por producto (principal y bump separados), con eventID estable por pago/producto para deduplicar. */
+/** Una sola compra por pago (principal + bump juntos), con eventID estable para que Meta deduplique navegador y servidor. */
 export function purchaseEvents(paymentId: string, offer: Offer, bump: boolean): PurchaseEvent[] {
-  const events: PurchaseEvent[] = [
+  const items: PurchaseItem[] = [{ id: META_PRODUCTS.main.id, name: META_PRODUCTS.main.name, price: OFFER_PRICES[offer] }]
+  if (bump) items.push({ id: META_PRODUCTS.bump.id, name: META_PRODUCTS.bump.name, price: PRICE_BUMP })
+  return [
     {
-      eventId: `purchase_${paymentId}_${META_PRODUCTS.main.id}`,
-      productId: META_PRODUCTS.main.id,
-      name: META_PRODUCTS.main.name,
-      value: OFFER_PRICES[offer],
+      eventId: `purchase_${paymentId}`,
+      value: items.reduce((sum, i) => sum + i.price, 0),
       plan: offer,
+      items,
     },
   ]
-  if (bump) {
-    events.push({
-      eventId: `purchase_${paymentId}_${META_PRODUCTS.bump.id}`,
-      productId: META_PRODUCTS.bump.id,
-      name: META_PRODUCTS.bump.name,
-      value: PRICE_BUMP,
-      plan: 'bump',
-    })
-  }
-  return events
 }
 
 export function purchaseCustomData(e: PurchaseEvent) {
   return {
     currency: 'COP',
     value: e.value,
-    content_ids: [e.productId],
-    content_name: e.name,
+    content_ids: e.items.map((i) => i.id),
+    content_name: e.items.map((i) => i.name).join(' + '),
     content_type: 'product',
-    contents: [{ id: e.productId, quantity: 1 }],
+    contents: e.items.map((i) => ({ id: i.id, quantity: 1, item_price: i.price })),
+    num_items: e.items.length,
     plan: e.plan,
   }
 }
